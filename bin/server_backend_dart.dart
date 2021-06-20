@@ -27,16 +27,31 @@ Future<HttpServer> createServer() async {
 }
 
 Future<void> handleRequests(HttpServer server) async {
-  await for(HttpRequest request in server) {
-    switch(request.method) {
-      case 'GET': handleGet(request); break;
-      case 'POST': await handlePost(request); break;
-      case 'PUT': await handlePut(request); break;
-      case 'OPTIONS' : handleOptions(request); break;
-      default: {
-        print('Unknown Handler for Request: ${request.method}');
-        request.response.close();
+  await for (HttpRequest request in server) {
+    try {
+      switch (request.method) {
+        case 'GET':
+          handleGet(request);
+          break;
+        case 'POST':
+          await handlePost(request);
+          break;
+        case 'PUT':
+          await handlePut(request);
+          break;
+        case 'OPTIONS' :
+          handleOptions(request);
+          break;
+        default:
+          {
+            print('Unknown Handler for Request: ${request.method}');
+            throw Exception;
+          }
       }
+    } on Exception catch (err) {
+      handleExceptions(err, request);
+      request.response.statusCode = HttpStatus.internalServerError;
+      unawaited(request.response.close());
     }
   }
 }
@@ -51,7 +66,7 @@ void handleOptions(HttpRequest request) {
   request.response.headers.add(AccessControlAllowedOriginHeader, AccessControlAllowedOriginValue);
   request.response.headers.add(AccessControlAllowedHeaderMethods, AccessControlAllowedMethodsValues);
   request.response.headers.add(AccessControlAllowHeaders, AccessControlAllowHeadersValue);
-  request.response.close();
+  unawaited(request.response.close());
 }
 
 void handleGet(HttpRequest request) {
@@ -64,7 +79,7 @@ void handleGet(HttpRequest request) {
   request.response.statusCode = HttpStatus.ok;
   request.response.write(encodedJson);
   //request.response.flush();
-  request.response.close();
+  unawaited(request.response.close());
 }
 
 Future<void> handlePost(HttpRequest request) async{
@@ -99,7 +114,7 @@ Future<void> handlePut(HttpRequest request) async {
   request.response.headers.add(AccessControlAllowedHeaderMethods, AccessControlAllowedMethodsValues);
   request.response.headers.add(AccessControlAllowHeaders, AccessControlAllowHeadersValue);
   //await request.response.flush();
-  request.response.close();
+  unawaited(request.response.close());
 }
 
 Future<void> loadParticipants() async {
@@ -112,6 +127,15 @@ Future saveLocal(List<Participant> persons, File filePath) async {
   unawaited(filePath.writeAsString(json.encode(
       persons.map((person) => person.toJson()).toList()
   )));
+}
+
+void handleExceptions(dynamic err, HttpRequest request) async {
+  var body = await utf8.decoder.bind(request).join();
+  print('Error Time: ${DateTime.now()}');
+  print('Caught Error: ' + err);
+  print('On Request: $body');
+  print('With Headers: ${request.headers}');
+  print('Session: ${request.session}, URI: ${request.uri}');
 }
 
 
